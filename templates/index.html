@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Detection and Summarization</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+           
+            padding: 0;
+            background-color: #f3f4f6;
+        }
+
+        .main-container {
+            text-align: center;
+            padding-top: 20px;
+            height: 97vh; /* Extend to the bottom of the screen */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-container {
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+             /* Fill remaining vertical space */
+            margin-top: 20px;
+            height: 800px;
+        }
+
+        .section-wrapper {
+            width: 50%; /* Half of the screen width */
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto; /* Add scrollbar if content overflows */
+            max-height: calc(100vh - 80px); /* Max height for the section (subtracting header height and margin) */
+            margin-bottom: 0px; /* Margin at the bottom */
+        }
+
+        .section {
+            text-align: center;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin: 10px;
+            flex-grow: 1; /* Fill available vertical space */
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        label.upload-label {
+            padding: 15px 30px;
+            background-color: #4CAF50;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: background-color 0.3s;
+            z-index: 2;
+        }
+
+        label.upload-label:hover {
+            background-color: #45a049;
+        }
+
+        #result, #summary {
+            text-align: left;
+            margin-top: 20px;
+            overflow-y: auto; /* Add scrollbar if content overflows */
+        }
+
+        #result p, #summary p {
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        #result .detected-objects, #summary .detected-objects {
+            background-color: #f0f0f0;
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        #result img {
+            max-width: 100%;
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+
+        .question-input {
+            margin-top: 20px;
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .submit-button {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .submit-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <h1>Object Detection and Speech Recognization</h1>
+        
+        <div class="section-container">
+            <div class="section-wrapper">
+                <div class="section">
+                    <h2>Object Detection</h2>
+                    <input type="file" id="fileInput" accept="image/*">
+                    <label for="fileInput" class="upload-label">Choose Image</label>
+                    <div id="result"></div>
+                </div>
+            </div>
+            
+            <div class="section-wrapper">
+                <div class="section">
+                    <h2>Answers</h2>
+                    <form id="questionForm">
+                        <input type="file" id="questionFileInput" accept=".txt">
+                        <label for="questionFileInput" class="upload-label">Upload Content Text File</label>
+                        <textarea id="questionText" class="question-input" placeholder="Enter your question"></textarea>
+                        <button type="submit" class="submit-button">Submit</button>
+                    </form>
+                    <div id="summary"></div> <!-- Add a new div for the summary -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var detectedObject=[];
+        function uploadFile() {
+            detectedObject=[]
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('result');
+                if ('error' in data) {
+                    resultDiv.innerText = data.error;
+                } else {
+                    resultDiv.innerHTML = '<p>Detected objects:</p>';
+                    data.objects_detected.forEach(object => {
+                        detectedObject.push(object);
+                        resultDiv.innerHTML += '<span class="detected-objects">' + object + '</span>';
+                    });
+                    resultDiv.innerHTML += '<img src="data:image/jpeg;base64,' + data.image + '" alt="Detected Objects">';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function submitQuestion(event) {
+            event.preventDefault(); // Prevent form submission
+
+            const questionText = document.getElementById('questionText').value;
+            const questionFileInput = document.getElementById('questionFileInput');
+            const questionFile = questionFileInput.files[0];
+
+            const formData = new FormData();
+            formData.append('questionText', questionText);
+            formData.append('questionFile', questionFile);
+            let objs='';
+            if(detectedObject && detectedObject.length){
+                detectedObject.forEach((e)=>{
+                    objs=objs + " " + e;
+                });
+            }
+            formData.append('detectedObjects',objs);
+
+            fetch('/summarize', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const summaryDiv = document.getElementById('summary'); // Select the summary div
+                if ('summary' in data ) {
+                    summaryDiv.innerHTML = '<p>Summary:</p>';
+                    summaryDiv.innerHTML += '<p>' + data.summary + '</p>';
+
+                    // Append detected objects separately
+                
+                } else {
+                    summaryDiv.innerText = 'No summary available';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        document.getElementById('fileInput').addEventListener('change', uploadFile);
+        document.getElementById('questionForm').addEventListener('submit', submitQuestion);
+    </script>
+</body>
+</html>
